@@ -1,0 +1,33 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.saarthi.app">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:label="Saarthi"
+        android:theme="@style/Theme.AppCompat.Light">
+
+        <!-- Launcher Activity -->
+        <activity
+            android:name=".activities.LoginActivity"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <!-- Internal Activities -->
+        <activity
+            android:name=".activities.DashboardActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".activities.AdviceActivity"
+            android:exported="false" />
+
+    </application>
+
+</manifest>
