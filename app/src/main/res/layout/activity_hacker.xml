@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:background="#000000"
+    android:padding="16dp"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <TextView
+        android:id="@+id/statusText"
+        android:text="Disconnected"
+        android:textColor="#00FF00"
+        android:textSize="18sp"/>
+
+    <Button
+        android:id="@+id/btnConnect"
+        android:text="CONNECT SERVER"/>
+
+    <Button
+        android:id="@+id/btnScan"
+        android:text="RUN SCAN"/>
+
+    <Button
+        android:id="@+id/btnUpload"
+        android:text="UPLOAD DATA"/>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <TextView
+            android:id="@+id/logBox"
+            android:textColor="#00FF00"
+            android:textSize="14sp"/>
+
+    </ScrollView>
+
+</LinearLayout>
