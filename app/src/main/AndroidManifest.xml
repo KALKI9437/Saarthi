@@ -6,7 +6,9 @@
     <application
         android:label="Saarthi"
         android:theme="@style/Theme.AppCompat.Light">
-
+        
+     android:networkSecurityConfig="@xml/network_security_config">
+        
         <!-- Launcher Activity -->
         <activity
             android:name=".activities.LoginActivity"
