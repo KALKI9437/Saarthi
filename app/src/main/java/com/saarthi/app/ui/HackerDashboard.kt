@@ -36,14 +36,14 @@ class HackerDashboard : AppCompatActivity() {
 
         setContentView(R.layout.activity_hacker)
 
-        // Permissions
+        // Permission
         StoragePermission.request(this)
 
         status = findViewById(R.id.statusText)
         logBox = findViewById(R.id.logBox)
         progress = findViewById(R.id.progressBar)
 
-        // Save server once (Phase-2 requirement)
+        // 🔥 STEP-7/5: Save server for auto backup
         PrefManager.saveServer(this, SERVER_URL)
 
         // CONNECT
@@ -56,14 +56,27 @@ class HackerDashboard : AppCompatActivity() {
             pickFolder()
         }
 
-        // MANUAL BACKUP (Phase-1)
+        // MANUAL BACKUP
         findViewById<Button>(R.id.btnUpload).setOnClickListener {
             startBackup()
         }
 
-        // AUTO BACKUP (Phase-2)
+        // 🔥 STEP-7: AUTO BACKUP BUTTON
         findViewById<Button>(R.id.btnAuto).setOnClickListener {
-            startAutoBackup()
+
+            if (PrefManager.getFolder(this) == null) {
+
+                log("❗ Select folder first")
+                Toast.makeText(
+                    this,
+                    "Select folder before enabling auto backup",
+                    Toast.LENGTH_SHORT
+                ).show()
+
+            } else {
+
+                startAutoBackup()
+            }
         }
 
         log("Dashboard Loaded ✅")
@@ -93,9 +106,12 @@ class HackerDashboard : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
 
                     if (response.isSuccessful) {
+
                         status.text = "Connected ✅"
                         log("Server OK")
+
                     } else {
+
                         status.text = "Server Error ❌"
                         log("Health API failed")
                     }
@@ -106,6 +122,7 @@ class HackerDashboard : AppCompatActivity() {
             } catch (e: Exception) {
 
                 withContext(Dispatchers.Main) {
+
                     status.text = "Failed ❌"
                     log("Server not reachable")
                 }
@@ -120,6 +137,7 @@ class HackerDashboard : AppCompatActivity() {
     private fun pickFolder() {
 
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+
         intent.addFlags(
             Intent.FLAG_GRANT_READ_URI_PERMISSION or
                     Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
@@ -146,7 +164,7 @@ class HackerDashboard : AppCompatActivity() {
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
 
-                // 🔥 STEP-5: Save folder for auto backup
+                // 🔥 STEP-5: Save folder for Phase-2
                 PrefManager.saveFolder(
                     this,
                     selectedFolder.toString()
@@ -165,6 +183,7 @@ class HackerDashboard : AppCompatActivity() {
     private fun startBackup() {
 
         if (selectedFolder == null) {
+
             log("❗ Select folder first")
             status.text = "No Folder"
             return
@@ -172,6 +191,7 @@ class HackerDashboard : AppCompatActivity() {
 
         status.text = "Backing up..."
         progress.progress = 0
+
         log("Backup started...")
 
         scope.launch {
@@ -182,10 +202,13 @@ class HackerDashboard : AppCompatActivity() {
             )
 
             if (files.isEmpty()) {
+
                 withContext(Dispatchers.Main) {
+
                     log("No files found")
                     status.text = "Nothing to backup"
                 }
+
                 return@launch
             }
 
@@ -209,6 +232,7 @@ class HackerDashboard : AppCompatActivity() {
                         )
 
                         temp.delete()
+
                         uploaded
 
                     } catch (e: Exception) {
@@ -232,6 +256,7 @@ class HackerDashboard : AppCompatActivity() {
             }
 
             withContext(Dispatchers.Main) {
+
                 status.text = "Backup Finished ✅"
                 log("Result: $success / $total uploaded")
             }
@@ -245,8 +270,8 @@ class HackerDashboard : AppCompatActivity() {
     private fun startAutoBackup() {
 
         val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.UNMETERED) // WiFi
-            .setRequiresCharging(true)                     // Charging
+            .setRequiredNetworkType(NetworkType.UNMETERED) // WiFi only
+            .setRequiresCharging(true)                     // Charging only
             .build()
 
         val work = PeriodicWorkRequestBuilder<BackupWorker>(
@@ -271,7 +296,9 @@ class HackerDashboard : AppCompatActivity() {
     // ==================================================
 
     private fun log(msg: String) {
+
         runOnUiThread {
+
             logBox.append("➤ $msg\n")
         }
     }
@@ -281,6 +308,7 @@ class HackerDashboard : AppCompatActivity() {
     // ==================================================
 
     override fun onDestroy() {
+
         super.onDestroy()
         scope.cancel()
     }
