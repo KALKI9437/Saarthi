@@ -47,7 +47,7 @@ class HackerDashboard : AppCompatActivity() {
         log("Hacker Dashboard Loaded")
     }
 
-    // ✅ Real server connection test
+    // ✅ Real server connection test (FIXED)
     private fun testConnection() {
 
         status.text = "Connecting..."
@@ -67,20 +67,21 @@ class HackerDashboard : AppCompatActivity() {
 
                 val response = client.newCall(request).execute()
 
-                if (response.isSuccessful) {
+                withContext(Dispatchers.Main) {
 
-                    withContext(Dispatchers.Main) {
+                    if (response.isSuccessful) {
+
                         status.text = "Connected ✅"
                         log("Server connected successfully")
-                    }
 
-                } else {
+                    } else {
 
-                    withContext(Dispatchers.Main) {
                         status.text = "Server Error ❌"
-                        log("Server error: ${response.code}")
+                        log("Server responded but not OK")   // ✅ FIXED
                     }
                 }
+
+                response.close()
 
             } catch (e: IOException) {
 
