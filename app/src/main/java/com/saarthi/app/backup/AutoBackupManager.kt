@@ -13,16 +13,13 @@ object AutoBackupManager {
 
     fun run(ctx: Context) {
 
-        // Get saved folder
         val uriStr = PrefManager.getFolder(ctx) ?: return
-
         val server = PrefManager.getServer(ctx) ?: return
 
         val uri = Uri.parse(uriStr)
 
         val folder = DocumentFile.fromTreeUri(ctx, uri) ?: return
 
-        // ✅ Use correct scanner
         val files = FileScanner.scanFolder(ctx, folder.uri)
 
         if (files.isEmpty()) return
@@ -35,7 +32,6 @@ object AutoBackupManager {
 
                 val temp = FileUtil.copyToTemp(ctx, f.uri)
 
-                // Encrypt
                 val encrypted = File(
                     temp.parent,
                     temp.name + ".enc"
@@ -49,15 +45,11 @@ object AutoBackupManager {
 
                 temp.delete()
 
-                // Hash
                 val hash = HashUtil.getHash(encrypted)
 
                 val name = f.name ?: f.uri.toString()
 
-                val oldHash = HashManager.get(
-                    ctx,
-                    name
-                )
+                val oldHash = HashManager.get(ctx, name)
 
                 if (hash == oldHash) {
 
@@ -65,12 +57,13 @@ object AutoBackupManager {
                     continue
                 }
 
-                // ✅ Pass progress (0 = auto mode)
+                // ✅ FIXED CALLBACK
                 val uploaded = Uploader.uploadFile(
                     server,
-                    encrypted,
-                    0
-                )
+                    encrypted
+                ) { 
+                    // Auto mode → no UI → ignore progress
+                }
 
                 if (uploaded) {
 
