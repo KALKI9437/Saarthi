@@ -5,6 +5,9 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import com.saarthi.app.data.PrefManager
 import com.saarthi.app.data.HashManager
+import com.saarthi.app.security.CryptoUtil
+import com.saarthi.app.security.KeyManager
+import java.io.File
 
 object AutoBackupManager {
 
@@ -19,35 +22,54 @@ object AutoBackupManager {
 
         val files = FileScanner.scanDocument(folder)
 
+        // Get encryption key
+        val key = KeyManager.getOrCreate(ctx)
+
         for (f in files) {
 
             try {
 
+                // Copy original file to temp
                 val temp = FileUtil.copyToTemp(ctx, f.uri)
 
-                // 🔥 STEP-5.1: Generate hash
-                val hash = HashUtil.getHash(temp)
+                // 🔐 Encrypt temp file
+                val encrypted = File(
+                    temp.parent,
+                    temp.name + ".enc"
+                )
 
-                // 🔥 STEP-5.2: Get old hash
+                CryptoUtil.encrypt(
+                    temp,
+                    encrypted,
+                    key
+                )
+
+                // Delete plain temp file
+                temp.delete()
+
+                // 🔍 Generate hash of encrypted file
+                val hash = HashUtil.getHash(encrypted)
+
+                // 🔍 Get old hash
                 val oldHash = HashManager.get(
                     ctx,
                     f.name ?: ""
                 )
 
-                // 🔁 STEP-5.3: Compare (Skip if same)
+                // 🔁 Skip if same
                 if (hash == oldHash) {
 
-                    temp.delete()
+                    encrypted.delete()
                     continue
                 }
 
-                // 🚀 STEP-5.4: Upload only if changed
+                // 🚀 Upload encrypted file
                 val uploaded = Uploader.uploadFile(
                     PrefManager.getServer(ctx),
-                    temp
+                    encrypted
                 )
 
-                // 💾 STEP-5.5: Save new hash
+                // 💾 Save new hash
                 if (uploaded) {
 
                     HashManager.save(
@@ -57,7 +79,8 @@ object AutoBackupManager {
                     )
                 }
 
-                temp.delete()
+                // Delete encrypted temp
+                encrypted.delete()
 
             } catch (e: Exception) {
 
