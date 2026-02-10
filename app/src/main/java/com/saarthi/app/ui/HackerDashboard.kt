@@ -11,6 +11,7 @@ import com.saarthi.app.R
 import com.saarthi.app.permissions.StoragePermission
 import com.saarthi.app.backup.*
 import com.saarthi.app.data.PrefManager
+import com.saarthi.app.data.HashManager
 import kotlinx.coroutines.*
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -43,7 +44,7 @@ class HackerDashboard : AppCompatActivity() {
         logBox = findViewById(R.id.logBox)
         progress = findViewById(R.id.progressBar)
 
-        // 🔥 STEP-7/5: Save server for auto backup
+        // Save server
         PrefManager.saveServer(this, SERVER_URL)
 
         // CONNECT
@@ -61,12 +62,13 @@ class HackerDashboard : AppCompatActivity() {
             startBackup()
         }
 
-        // 🔥 STEP-7: AUTO BACKUP BUTTON
+        // AUTO BACKUP
         findViewById<Button>(R.id.btnAuto).setOnClickListener {
 
             if (PrefManager.getFolder(this) == null) {
 
                 log("❗ Select folder first")
+
                 Toast.makeText(
                     this,
                     "Select folder before enabling auto backup",
@@ -74,7 +76,6 @@ class HackerDashboard : AppCompatActivity() {
                 ).show()
 
             } else {
-
                 startAutoBackup()
             }
         }
@@ -106,12 +107,9 @@ class HackerDashboard : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
 
                     if (response.isSuccessful) {
-
                         status.text = "Connected ✅"
                         log("Server OK")
-
                     } else {
-
                         status.text = "Server Error ❌"
                         log("Health API failed")
                     }
@@ -164,7 +162,7 @@ class HackerDashboard : AppCompatActivity() {
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
 
-                // 🔥 STEP-5: Save folder for Phase-2
+                // Save folder
                 PrefManager.saveFolder(
                     this,
                     selectedFolder.toString()
@@ -177,7 +175,7 @@ class HackerDashboard : AppCompatActivity() {
     }
 
     // ==================================================
-    // MANUAL BACKUP (PHASE-1)
+    // MANUAL BACKUP (PHASE-3 SMART ENGINE)
     // ==================================================
 
     private fun startBackup() {
@@ -214,6 +212,7 @@ class HackerDashboard : AppCompatActivity() {
 
             val total = files.size
             var success = 0
+            var skipped = 0   // 🔥 STEP-6: Skip counter
 
             for ((index, doc) in files.withIndex()) {
 
@@ -226,10 +225,43 @@ class HackerDashboard : AppCompatActivity() {
                             doc.uri
                         )
 
+                        // 🔥 STEP-4: Generate hash
+                        val hash = HashUtil.getHash(temp)
+
+                        // 🔥 Old hash
+                        val oldHash = HashManager.get(
+                            this@HackerDashboard,
+                            doc.name
+                        )
+
+                        // 🔁 Compare
+                        if (hash == oldHash) {
+
+                            temp.delete()
+                            skipped++
+
+                            withContext(Dispatchers.Main) {
+                                log("Skipped (No Change): ${doc.name}")
+                            }
+
+                            return@run true
+                        }
+
+                        // 🚀 Upload if changed
                         val uploaded = Uploader.uploadFile(
                             SERVER_URL,
                             temp
                         )
+
+                        // 💾 Save new hash
+                        if (uploaded) {
+
+                            HashManager.save(
+                                this@HackerDashboard,
+                                doc.name,
+                                hash
+                            )
+                        }
 
                         temp.delete()
 
@@ -258,20 +290,22 @@ class HackerDashboard : AppCompatActivity() {
             withContext(Dispatchers.Main) {
 
                 status.text = "Backup Finished ✅"
+
                 log("Result: $success / $total uploaded")
+                log("Skipped files: $skipped") // 🔥 STEP-6 Log
             }
         }
     }
 
     // ==================================================
-    // AUTO BACKUP SCHEDULER (PHASE-2 CORE)
+    // AUTO BACKUP SCHEDULER (PHASE-2)
     // ==================================================
 
     private fun startAutoBackup() {
 
         val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.UNMETERED) // WiFi only
-            .setRequiresCharging(true)                     // Charging only
+            .setRequiredNetworkType(NetworkType.UNMETERED)
+            .setRequiresCharging(true)
             .build()
 
         val work = PeriodicWorkRequestBuilder<BackupWorker>(
