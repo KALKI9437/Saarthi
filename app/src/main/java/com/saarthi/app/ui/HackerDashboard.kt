@@ -11,10 +11,10 @@ import com.saarthi.app.permissions.StoragePermission
 import com.saarthi.app.backup.FileScanner
 import com.saarthi.app.backup.FileUtil
 import com.saarthi.app.backup.Uploader
+import com.saarthi.app.backup.RetryManager
 import kotlinx.coroutines.*
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.io.IOException
 
 class HackerDashboard : AppCompatActivity() {
 
@@ -26,6 +26,10 @@ class HackerDashboard : AppCompatActivity() {
 
     private val PICK_FOLDER = 101
     private var selectedFolder: Uri? = null
+
+    // 🔴 CHANGE THIS TO YOUR SERVER
+    private val SERVER_URL = "http://YOUR_SERVER/upload"
+    private val HEALTH_URL = "http://YOUR_SERVER/health"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,63 +43,84 @@ class HackerDashboard : AppCompatActivity() {
         logBox = findViewById(R.id.logBox)
         progress = findViewById(R.id.progressBar)
 
+        // CONNECT
         findViewById<Button>(R.id.btnConnect).setOnClickListener {
             testConnection()
         }
 
-        // Phase-1: Folder picker
+        // PICK FOLDER
         findViewById<Button>(R.id.btnScan).setOnClickListener {
             pickFolder()
         }
 
-        // Phase-1: Real backup
+        // START BACKUP
         findViewById<Button>(R.id.btnUpload).setOnClickListener {
             startBackup()
         }
 
-        log("Hacker Dashboard Loaded")
+        log("Dashboard Loaded ✅")
     }
 
-    // ---------------- CONNECT SERVER ----------------
+    // ==================================================
+    // SERVER CONNECTION TEST
+    // ==================================================
 
     private fun testConnection() {
 
         status.text = "Connecting..."
-        log("Trying to connect to server...")
+        log("Checking server...")
 
         scope.launch {
+
             try {
+
                 val request = Request.Builder()
-                    .url("http://YOUR_SERVER/health") // optional health API
+                    .url(HEALTH_URL)
                     .build()
 
-                val response = OkHttpClient().newCall(request).execute()
+                val response = OkHttpClient()
+                    .newCall(request)
+                    .execute()
 
                 withContext(Dispatchers.Main) {
+
                     if (response.isSuccessful) {
+
                         status.text = "Connected ✅"
-                        log("Server connected successfully")
+                        log("Server OK")
+
                     } else {
+
                         status.text = "Server Error ❌"
-                        log("Server responded but not OK")
+                        log("Health API failed")
                     }
                 }
 
                 response.close()
 
             } catch (e: Exception) {
+
                 withContext(Dispatchers.Main) {
+
                     status.text = "Failed ❌"
-                    log("Connection failed")
+                    log("Server not reachable")
                 }
             }
         }
     }
 
-    // ---------------- PICK FOLDER ----------------
+    // ==================================================
+    // PICK FOLDER
+    // ==================================================
 
     private fun pickFolder() {
+
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+        intent.addFlags(
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+        )
+
         startActivityForResult(intent, PICK_FOLDER)
     }
 
@@ -107,23 +132,39 @@ class HackerDashboard : AppCompatActivity() {
         super.onActivityResult(requestCode, resultCode, data)
 
         if (requestCode == PICK_FOLDER && resultCode == Activity.RESULT_OK) {
+
             selectedFolder = data?.data
-            log("Folder selected ✅")
-            status.text = "Folder Ready"
+
+            if (selectedFolder != null) {
+
+                contentResolver.takePersistableUriPermission(
+                    selectedFolder!!,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+
+                log("Folder Selected ✅")
+                status.text = "Folder Ready"
+            }
         }
     }
 
-    // ---------------- REAL BACKUP ENGINE ----------------
+    // ==================================================
+    // REAL BACKUP ENGINE (PHASE-1 CORE)
+    // ==================================================
 
     private fun startBackup() {
 
         if (selectedFolder == null) {
-            log("Select folder first ❗")
+
+            log("❗ Select folder first")
+            status.text = "No Folder"
             return
         }
 
         status.text = "Backing up..."
         progress.progress = 0
+
+        log("Backup started...")
 
         scope.launch {
 
@@ -133,58 +174,87 @@ class HackerDashboard : AppCompatActivity() {
             )
 
             if (files.isEmpty()) {
+
                 withContext(Dispatchers.Main) {
+
                     log("No files found")
                     status.text = "Nothing to backup"
                 }
+
                 return@launch
             }
 
-            var success = 0
             val total = files.size
+            var success = 0
 
             for ((index, doc) in files.withIndex()) {
-                try {
-                    val tempFile = FileUtil.copyToTemp(
-                        this@HackerDashboard,
-                        doc.uri
-                    )
 
-                    val ok = Uploader.uploadFile(
-                        "http://YOUR_SERVER/upload",
-                        tempFile
-                    )
+                val ok = RetryManager.run {
 
-                    tempFile.delete()
+                    try {
 
-                    if (ok) success++
+                        val tempFile = FileUtil.copyToTemp(
+                            this@HackerDashboard,
+                            doc.uri
+                        )
 
-                    val percent = ((index + 1) * 100) / total
-                    withContext(Dispatchers.Main) {
-                        progress.progress = percent
+                        val uploaded = Uploader.uploadFile(
+                            SERVER_URL,
+                            tempFile
+                        )
+
+                        tempFile.delete()
+
+                        uploaded
+
+                    } catch (e: Exception) {
+
+                        e.printStackTrace()
+                        false
                     }
+                }
 
-                } catch (e: Exception) {
-                    e.printStackTrace()
+                if (ok) success++
+
+                val percent = ((index + 1) * 100) / total
+
+                withContext(Dispatchers.Main) {
+
+                    progress.progress = percent
+
+                    if (ok)
+                        log("Uploaded: ${doc.name}")
+                    else
+                        log("Failed: ${doc.name}")
                 }
             }
 
             withContext(Dispatchers.Main) {
+
                 status.text = "Backup Finished ✅"
-                log("Uploaded $success / $total files")
+                log("Result: $success / $total uploaded")
             }
         }
     }
 
-    // ---------------- LOG SYSTEM ----------------
+    // ==================================================
+    // LOG SYSTEM
+    // ==================================================
 
     private fun log(msg: String) {
+
         runOnUiThread {
+
             logBox.append("➤ $msg\n")
         }
     }
 
+    // ==================================================
+    // CLEANUP
+    // ==================================================
+
     override fun onDestroy() {
+
         super.onDestroy()
         scope.cancel()
     }
