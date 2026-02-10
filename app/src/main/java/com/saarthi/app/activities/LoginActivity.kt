@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.saarthi.app.data.UserSession
+import com.saarthi.app.ui.HackerDashboard   // ✅ IMPORT ADDED
 
 class LoginActivity : AppCompatActivity() {
 
@@ -12,19 +13,29 @@ class LoginActivity : AppCompatActivity() {
 
         val session = UserSession(this)
 
-        // Auto login
+        // ✅ Auto Login System
         if (session.isLoggedIn()) {
-            goDashboard()
+
+            // Already logged in → Open Hacker Panel
+            goHackerDashboard()
+
         } else {
+
+            // First time login (demo)
             session.saveSession("akash001", "demo_token")
-            goDashboard()
+
+            // Open Hacker Panel
+            goHackerDashboard()
         }
     }
 
-    private fun goDashboard() {
+    // ✅ Open Hacker Dashboard
+    private fun goHackerDashboard() {
+
         startActivity(
-            Intent(this, DashboardActivity::class.java)
+            Intent(this, HackerDashboard::class.java)
         )
+
         finish()
     }
 }
