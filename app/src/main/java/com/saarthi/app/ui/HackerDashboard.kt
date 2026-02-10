@@ -1,5 +1,6 @@
 package com.saarthi.app.ui
 
+import android.app.AlertDialog
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -21,26 +22,44 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
 import java.util.concurrent.TimeUnit
 
 class HackerDashboard : AppCompatActivity() {
 
-    private lateinit var status: TextView
+    // ================= UI =================
+    private lateinit var statusText: TextView
     private lateinit var logBox: TextView
-    private lateinit var progress: ProgressBar
+    private lateinit var progressBar: ProgressBar
+    private lateinit var btnConnect: Button
+    private lateinit var btnScan: Button
+    private lateinit var btnUpload: Button
+    private lateinit var btnAuto: Button
+    private lateinit var btnStopAuto: Button
+    private lateinit var btnClearLogs: Button
+    private lateinit var txtFileCount: TextView
+    private lateinit var txtLastBackup: TextView
+    private lateinit var txtServerStatus: TextView
 
     private var selectedFolder: Uri? = null
 
+    // ================= CONFIG =================
     private val SERVER_URL = "http://192.168.1.5:8000/upload"
     private val HEALTH_URL = "http://192.168.1.5:8000/health"
 
-    // =============================
-    // Folder Picker
-    // =============================
+    private val http = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    // ================= FOLDER PICKER =================
     private val folderPicker =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-
-            if (uri == null) return@registerForActivityResult
+            if (uri == null) {
+                log("❌ Folder selection cancelled")
+                return@registerForActivityResult
+            }
 
             contentResolver.takePersistableUriPermission(
                 uri,
@@ -48,259 +67,215 @@ class HackerDashboard : AppCompatActivity() {
             )
 
             selectedFolder = uri
-
-            // ✅ Safe String
             PrefManager.saveFolder(this, uri.toString())
 
-            status.text = "Folder Ready ✅"
-            log("Folder Selected")
+            lifecycleScope.launch(Dispatchers.IO) {
+                val files = FileScanner.scanFolder(this@HackerDashboard, uri)
+                withContext(Dispatchers.Main) {
+                    txtFileCount.text = "📁 Files: ${files.size}"
+                    statusText.text = "✅ Folder Ready"
+                    log("Folder selected (${files.size} files)")
+                }
+            }
         }
 
-    // =============================
-    // On Create
-    // =============================
+    // ================= ON CREATE =================
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         setContentView(R.layout.activity_hacker)
 
         StoragePermission.request(this)
-
-        status = findViewById(R.id.statusText)
-        logBox = findViewById(R.id.logBox)
-        progress = findViewById(R.id.progressBar)
-
-        // ✅ Safe server save
+        initViews()
         PrefManager.saveServer(this, SERVER_URL)
+        loadSavedState()
+        setupButtons()
+        lifecycleScope.launch { checkServerStatus() }
 
-        findViewById<Button>(R.id.btnConnect).setOnClickListener {
-            testConnection()
-        }
-
-        findViewById<Button>(R.id.btnScan).setOnClickListener {
-            pickFolder()
-        }
-
-        findViewById<Button>(R.id.btnUpload).setOnClickListener {
-            startBackup()
-        }
-
-        findViewById<Button>(R.id.btnAuto).setOnClickListener {
-            startAutoBackup()
-        }
-
-        log("Dashboard Loaded ✅")
+        log("🚀 Saarthi Backup Dashboard Loaded")
+        log("✅ Phase-1,2,3,4 Active")
     }
 
-    // =============================
-    // Server Test
-    // =============================
-    private fun testConnection() {
+    private fun initViews() {
+        statusText = findViewById(R.id.statusText)
+        logBox = findViewById(R.id.logBox)
+        progressBar = findViewById(R.id.progressBar)
 
-        status.text = "Connecting..."
+        btnConnect = findViewById(R.id.btnConnect)
+        btnScan = findViewById(R.id.btnScan)
+        btnUpload = findViewById(R.id.btnUpload)
+        btnAuto = findViewById(R.id.btnAuto)
+        btnStopAuto = findViewById(R.id.btnStopAuto)
+        btnClearLogs = findViewById(R.id.btnClearLogs)
 
-        lifecycleScope.launch(Dispatchers.IO) {
+        txtFileCount = findViewById(R.id.fileCountText)
+        txtLastBackup = findViewById(R.id.lastBackupText)
+        txtServerStatus = findViewById(R.id.serverStatusText)
+    }
 
-            try {
-
-                val req = Request.Builder()
-                    .url(HEALTH_URL)
-                    .build()
-
-                val res = OkHttpClient().newCall(req).execute()
-
-                withContext(Dispatchers.Main) {
-
-                    if (res.isSuccessful) {
-
-                        status.text = "Connected ✅"
-                        log("Server OK")
-
-                    } else {
-
-                        status.text = "Server Error ❌"
-                        log("Code: ${res.code}")
-                    }
-                }
-
-                res.close()
-
-            } catch (e: Exception) {
-
-                withContext(Dispatchers.Main) {
-
-                    status.text = "Failed ❌"
-                    log("Server not reachable")
-                }
-            }
+    private fun loadSavedState() {
+        PrefManager.getFolder(this)?.let {
+            selectedFolder = Uri.parse(it)
+            statusText.text = "📁 Previous folder loaded"
         }
+
+        txtLastBackup.text =
+            "Last Backup: ${PrefManager.getLastBackup(this) ?: "Never"}"
     }
 
-    // =============================
-    // Pick Folder
-    // =============================
-    private fun pickFolder() {
-        folderPicker.launch(null)
+    // ================= BUTTONS =================
+    private fun setupButtons() {
+        btnConnect.setOnClickListener { testServerConnection() }
+        btnScan.setOnClickListener { folderPicker.launch(null) }
+        btnUpload.setOnClickListener { startManualBackup() }
+        btnAuto.setOnClickListener { startAutoBackup() }
+        btnStopAuto.setOnClickListener { stopAutoBackup() }
+        btnClearLogs.setOnClickListener { logBox.text = "" }
     }
 
-    // =============================
-    // Manual Backup
-    // =============================
-    private fun startBackup() {
-
-        val folder = selectedFolder
-
-        if (folder == null) {
-
-            Toast.makeText(this, "Select folder first", Toast.LENGTH_SHORT).show()
-            log("❗ No folder selected")
+    // ================= PHASE-1 + 3 + 4 =================
+    private fun startManualBackup() {
+        val folder = selectedFolder ?: run {
+            toast("Select folder first")
             return
         }
 
-        status.text = "Backing up..."
-        progress.progress = 0
-
         lifecycleScope.launch(Dispatchers.IO) {
-
             val files = FileScanner.scanFolder(this@HackerDashboard, folder)
-
-            if (files.isEmpty()) {
-
-                withContext(Dispatchers.Main) {
-
-                    status.text = "Nothing to backup"
-                    log("No files found")
-                }
-
-                return@launch
-            }
+            if (files.isEmpty()) return@launch
 
             val key = KeyManager.getOrCreate(this@HackerDashboard)
-
-            val total = files.size
             var success = 0
             var skipped = 0
+            var failed = 0
 
             for ((i, doc) in files.withIndex()) {
-
-                val ok = RetryManager.run {
-
-                    try {
-
-                        val temp = FileUtil.copyToTemp(
-                            this@HackerDashboard,
-                            doc.uri
-                        )
-
-                        val encrypted =
-                            File(temp.parent, temp.name + ".enc")
-
-                        CryptoUtil.encrypt(temp, encrypted, key)
-
-                        temp.delete()
-
-                        val hash = HashUtil.getHash(encrypted)
-
-                        val old = HashManager.get(
-                            this@HackerDashboard,
-                            doc.name
-                        )
-
-                        if (hash == old) {
-
-                            encrypted.delete()
-                            skipped++
-
-                            withContext(Dispatchers.Main) {
-                                log("Skipped: ${doc.name}")
-                            }
-
-                            return@run true
-                        }
-
-                        // ✅ CALLBACK FIX
-                        val uploaded =
-                            Uploader.uploadFile(
-                                SERVER_URL,
-                                encrypted
-                            ) { percent ->
-
-                                lifecycleScope.launch(Dispatchers.Main) {
-                                    progress.progress = percent
-                                }
-                            }
-
-                        if (uploaded) {
-
-                            HashManager.save(
-                                this@HackerDashboard,
-                                doc.name,
-                                hash
-                            )
-                        }
-
-                        encrypted.delete()
-
-                        uploaded
-
-                    } catch (e: Exception) {
-
-                        false
-                    }
-                }
-
-                if (ok) success++
-
-                withContext(Dispatchers.Main) {
-
-                    progress.progress =
-                        ((i + 1) * 100) / total
+                val result = processFile(doc, key, i + 1, files.size)
+                when (result) {
+                    "SUCCESS" -> success++
+                    "SKIPPED" -> skipped++
+                    else -> failed++
                 }
             }
 
             withContext(Dispatchers.Main) {
-
-                status.text = "Backup Finished ✅"
-
-                log("Uploaded: $success / $total")
-                log("Skipped: $skipped")
+                val ts = timestamp()
+                PrefManager.setLastBackup(this@HackerDashboard, ts)
+                txtLastBackup.text = "Last Backup: $ts"
+                showSummary(success, skipped, failed, files.size)
             }
         }
     }
 
-    // =============================
-    // Auto Backup
-    // =============================
+    private suspend fun processFile(
+        doc: ScannedDocument,
+        key: ByteArray,
+        index: Int,
+        total: Int
+    ): String = try {
+
+        val temp = FileUtil.copyToTemp(this, doc.uri) ?: return "FAILED"
+        val enc = File(temp.parent, temp.name + ".enc")
+
+        CryptoUtil.encrypt(temp, enc, key)
+        temp.delete()
+
+        val hash = HashUtil.getHash(enc)
+        val old = HashManager.get(this, doc.uri.toString())
+
+        if (hash == old) {
+            enc.delete()
+            log("⏭ Skipped: ${doc.name}")
+            return "SKIPPED"
+        }
+
+        val uploaded = Uploader.uploadFile(SERVER_URL, enc)
+        if (uploaded) {
+            HashManager.save(this, doc.uri.toString(), hash)
+            log("✅ Uploaded: ${doc.name}")
+            "SUCCESS"
+        } else "FAILED"
+
+    } catch (e: Exception) {
+        log("❌ ${doc.name}: ${e.message}")
+        "FAILED"
+    }
+
+    // ================= PHASE-2 =================
     private fun startAutoBackup() {
-
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.UNMETERED)
-            .setRequiresCharging(true)
-            .build()
-
-        val work =
-            PeriodicWorkRequestBuilder<BackupWorker>(
-                24,
-                TimeUnit.HOURS
+        val work = PeriodicWorkRequestBuilder<BackupWorker>(
+            24, TimeUnit.HOURS
+        )
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.UNMETERED)
+                    .setRequiresCharging(true)
+                    .build()
             )
-                .setConstraints(constraints)
-                .build()
+            .build()
 
         WorkManager.getInstance(this)
             .enqueueUniquePeriodicWork(
-                "AUTO_BACKUP",
+                "SAARTHI_AUTO_BACKUP",
                 ExistingPeriodicWorkPolicy.REPLACE,
                 work
             )
 
-        status.text = "Auto Backup ON"
-        log("Auto backup scheduled")
+        log("🤖 Auto backup enabled")
     }
 
-    // =============================
-    // Log
-    // =============================
+    private fun stopAutoBackup() {
+        WorkManager.getInstance(this)
+            .cancelUniqueWork("SAARTHI_AUTO_BACKUP")
+        log("⏹ Auto backup stopped")
+    }
+
+    // ================= SERVER =================
+    private fun testServerConnection() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val res = http.newCall(
+                    Request.Builder().url(HEALTH_URL).build()
+                ).execute()
+
+                withContext(Dispatchers.Main) {
+                    txtServerStatus.text =
+                        if (res.isSuccessful) "🟢 ONLINE" else "🔴 OFFLINE"
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    txtServerStatus.text = "🔴 OFFLINE"
+                }
+            }
+        }
+    }
+
+    private suspend fun checkServerStatus() {
+        testServerConnection()
+    }
+
+    // ================= HELPERS =================
     private fun log(msg: String) {
-        logBox.append("➤ $msg\n")
+        runOnUiThread {
+            logBox.append("[${time()}] $msg\n")
+        }
+    }
+
+    private fun toast(msg: String) =
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+
+    private fun timestamp(): String =
+        SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.getDefault()).format(Date())
+
+    private fun time(): String =
+        SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+
+    private fun showSummary(s: Int, sk: Int, f: Int, t: Int) {
+        AlertDialog.Builder(this)
+            .setTitle("Backup Summary")
+            .setMessage(
+                "Success: $s\nSkipped: $sk\nFailed: $f\nTotal: $t"
+            )
+            .setPositiveButton("OK", null)
+            .show()
     }
 }
