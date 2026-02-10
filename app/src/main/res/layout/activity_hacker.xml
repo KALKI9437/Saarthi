@@ -7,6 +7,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- STATUS -->
     <TextView
         android:id="@+id/statusText"
         android:text="Disconnected"
@@ -15,28 +16,45 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
+    <!-- PROGRESS BAR (PHASE 1 ADDITION) -->
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="100"
+        android:progress="0"
+        android:indeterminate="false"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"/>
+
+    <!-- CONNECT SERVER -->
     <Button
         android:id="@+id/btnConnect"
         android:text="CONNECT SERVER"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
+    <!-- RUN SCAN (FOLDER PICKER) -->
     <Button
         android:id="@+id/btnScan"
-        android:text="RUN SCAN"
+        android:text="RUN SCAN (SELECT FOLDER)"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
+    <!-- UPLOAD DATA (REAL BACKUP) -->
     <Button
         android:id="@+id/btnUpload"
-        android:text="UPLOAD DATA"
+        android:text="UPLOAD DATA (BACKUP)"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
+    <!-- LOG VIEW -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
+        android:layout_weight="1"
+        android:layout_marginTop="8dp">
 
         <TextView
             android:id="@+id/logBox"
@@ -44,7 +62,6 @@
             android:textSize="14sp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
-
     </ScrollView>
 
 </LinearLayout>
