@@ -16,7 +16,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
-    <!-- PROGRESS BAR (PHASE 1 ADDITION) -->
+    <!-- PROGRESS BAR (PHASE 1) -->
     <ProgressBar
         android:id="@+id/progressBar"
         style="?android:attr/progressBarStyleHorizontal"
@@ -42,12 +42,20 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
-    <!-- UPLOAD DATA (REAL BACKUP) -->
+    <!-- UPLOAD DATA (MANUAL BACKUP) -->
     <Button
         android:id="@+id/btnUpload"
         android:text="UPLOAD DATA (BACKUP)"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
+
+    <!-- 🔥 AUTO BACKUP (PHASE 2 - STEP 7) -->
+    <Button
+        android:id="@+id/btnAuto"
+        android:text="AUTO BACKUP (DAILY)"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"/>
 
     <!-- LOG VIEW -->
     <ScrollView
