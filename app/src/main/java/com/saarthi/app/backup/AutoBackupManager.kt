@@ -16,23 +16,26 @@ object AutoBackupManager {
         // Get saved folder
         val uriStr = PrefManager.getFolder(ctx) ?: return
 
+        val server = PrefManager.getServer(ctx) ?: return
+
         val uri = Uri.parse(uriStr)
 
         val folder = DocumentFile.fromTreeUri(ctx, uri) ?: return
 
-        val files = FileScanner.scanDocument(folder)
+        // ✅ Use correct scanner
+        val files = FileScanner.scanFolder(ctx, folder.uri)
 
-        // Get encryption key
+        if (files.isEmpty()) return
+
         val key = KeyManager.getOrCreate(ctx)
 
         for (f in files) {
 
             try {
 
-                // Copy original file to temp
                 val temp = FileUtil.copyToTemp(ctx, f.uri)
 
-                // 🔐 Encrypt temp file
+                // Encrypt
                 val encrypted = File(
                     temp.parent,
                     temp.name + ".enc"
@@ -44,42 +47,40 @@ object AutoBackupManager {
                     key
                 )
 
-                // Delete plain temp file
                 temp.delete()
 
-                // 🔍 Generate hash of encrypted file
+                // Hash
                 val hash = HashUtil.getHash(encrypted)
 
-                // 🔍 Get old hash
+                val name = f.name ?: f.uri.toString()
+
                 val oldHash = HashManager.get(
                     ctx,
-                    f.name ?: ""
+                    name
                 )
 
-                // 🔁 Skip if same
                 if (hash == oldHash) {
 
                     encrypted.delete()
                     continue
                 }
 
-                // 🚀 Upload encrypted file
+                // ✅ Pass progress (0 = auto mode)
                 val uploaded = Uploader.uploadFile(
-                    PrefManager.getServer(ctx),
-                    encrypted
+                    server,
+                    encrypted,
+                    0
                 )
 
-                // 💾 Save new hash
                 if (uploaded) {
 
                     HashManager.save(
                         ctx,
-                        f.name ?: "",
+                        name,
                         hash
                     )
                 }
 
-                // Delete encrypted temp
                 encrypted.delete()
 
             } catch (e: Exception) {
