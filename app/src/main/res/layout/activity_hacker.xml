@@ -11,19 +11,27 @@
         android:id="@+id/statusText"
         android:text="Disconnected"
         android:textColor="#00FF00"
-        android:textSize="18sp"/>
+        android:textSize="18sp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
 
     <Button
         android:id="@+id/btnConnect"
-        android:text="CONNECT SERVER"/>
+        android:text="CONNECT SERVER"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
 
     <Button
         android:id="@+id/btnScan"
-        android:text="RUN SCAN"/>
+        android:text="RUN SCAN"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
 
     <Button
         android:id="@+id/btnUpload"
-        android:text="UPLOAD DATA"/>
+        android:text="UPLOAD DATA"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
 
     <ScrollView
         android:layout_width="match_parent"
@@ -33,7 +41,9 @@
         <TextView
             android:id="@+id/logBox"
             android:textColor="#00FF00"
-            android:textSize="14sp"/>
+            android:textSize="14sp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
 
     </ScrollView>
 
