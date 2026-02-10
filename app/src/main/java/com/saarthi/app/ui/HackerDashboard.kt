@@ -5,7 +5,9 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.widget.*
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.work.*
 import com.saarthi.app.R
 import com.saarthi.app.permissions.StoragePermission
@@ -14,7 +16,9 @@ import com.saarthi.app.data.PrefManager
 import com.saarthi.app.data.HashManager
 import com.saarthi.app.security.CryptoUtil
 import com.saarthi.app.security.KeyManager
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -26,13 +30,30 @@ class HackerDashboard : AppCompatActivity() {
     private lateinit var logBox: TextView
     private lateinit var progress: ProgressBar
 
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-
-    private val PICK_FOLDER = 101
     private var selectedFolder: Uri? = null
 
-    private val SERVER_URL = "http://YOUR_SERVER/upload"
-    private val HEALTH_URL = "http://YOUR_SERVER/health"
+    // ⚠️ Replace with real server URL
+    private val SERVER_URL = "http://192.168.1.5:8000/upload"
+    private val HEALTH_URL = "http://192.168.1.5:8000/health"
+
+    // Modern folder picker (replaces onActivityResult)
+    private val folderPicker =
+        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+
+            if (uri != null) {
+
+                contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+
+                selectedFolder = uri
+                PrefManager.saveFolder(this, uri.toString())
+
+                status.text = "Folder Ready ✅"
+                log("Folder Selected")
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,17 +68,20 @@ class HackerDashboard : AppCompatActivity() {
 
         PrefManager.saveServer(this, SERVER_URL)
 
-        findViewById<Button>(R.id.btnConnect).setOnClickListener { testConnection() }
-        findViewById<Button>(R.id.btnScan).setOnClickListener { pickFolder() }
-        findViewById<Button>(R.id.btnUpload).setOnClickListener { startBackup() }
+        findViewById<Button>(R.id.btnConnect).setOnClickListener {
+            testConnection()
+        }
+
+        findViewById<Button>(R.id.btnScan).setOnClickListener {
+            pickFolder()
+        }
+
+        findViewById<Button>(R.id.btnUpload).setOnClickListener {
+            startBackup()
+        }
 
         findViewById<Button>(R.id.btnAuto).setOnClickListener {
-            if (PrefManager.getFolder(this) == null) {
-                log("❗ Select folder first")
-                Toast.makeText(this, "Select folder first", Toast.LENGTH_SHORT).show()
-            } else {
-                startAutoBackup()
-            }
+            startAutoBackup()
         }
 
         log("Dashboard Loaded ✅")
@@ -68,23 +92,39 @@ class HackerDashboard : AppCompatActivity() {
     // ==================================================
 
     private fun testConnection() {
+
         status.text = "Connecting..."
-        scope.launch {
+
+        lifecycleScope.launch(Dispatchers.IO) {
+
             try {
-                val req = Request.Builder().url(HEALTH_URL).build()
+
+                val req = Request.Builder()
+                    .url(HEALTH_URL)
+                    .build()
+
                 val res = OkHttpClient().newCall(req).execute()
 
                 withContext(Dispatchers.Main) {
+
                     if (res.isSuccessful) {
+
                         status.text = "Connected ✅"
                         log("Server OK")
+
                     } else {
+
                         status.text = "Server Error ❌"
+                        log("Server responded: ${res.code}")
                     }
                 }
+
                 res.close()
+
             } catch (e: Exception) {
+
                 withContext(Dispatchers.Main) {
+
                     status.text = "Failed ❌"
                     log("Server not reachable")
                 }
@@ -97,57 +137,45 @@ class HackerDashboard : AppCompatActivity() {
     // ==================================================
 
     private fun pickFolder() {
-        val i = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-        i.addFlags(
-            Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-        )
-        startActivityForResult(i, PICK_FOLDER)
-    }
 
-    override fun onActivityResult(rc: Int, res: Int, data: Intent?) {
-        super.onActivityResult(rc, res, data)
-
-        if (rc == PICK_FOLDER && res == Activity.RESULT_OK) {
-            selectedFolder = data?.data
-            if (selectedFolder != null) {
-                contentResolver.takePersistableUriPermission(
-                    selectedFolder!!,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-                PrefManager.saveFolder(this, selectedFolder.toString())
-                status.text = "Folder Ready"
-                log("Folder Selected & Saved ✅")
-            }
-        }
+        folderPicker.launch(null)
     }
 
     // ==================================================
-    // MANUAL BACKUP (PHASE-4 SECURE)
+    // MANUAL BACKUP
     // ==================================================
 
     private fun startBackup() {
 
-        if (selectedFolder == null) {
-            log("❗ Select folder first")
+        val folder = selectedFolder
+
+        if (folder == null) {
+
+            Toast.makeText(this, "Select folder first", Toast.LENGTH_SHORT).show()
+            log("❗ No folder selected")
             return
         }
 
         status.text = "Backing up..."
         progress.progress = 0
 
-        scope.launch {
+        lifecycleScope.launch(Dispatchers.IO) {
 
-            val files = FileScanner.scanFolder(this@HackerDashboard, selectedFolder!!)
+            val files = FileScanner.scanFolder(this@HackerDashboard, folder)
+
             if (files.isEmpty()) {
+
                 withContext(Dispatchers.Main) {
-                    log("No files found")
+
                     status.text = "Nothing to backup"
+                    log("No files found")
                 }
+
                 return@launch
             }
 
             val key = KeyManager.getOrCreate(this@HackerDashboard)
+
             val total = files.size
             var success = 0
             var skipped = 0
@@ -155,37 +183,64 @@ class HackerDashboard : AppCompatActivity() {
             for ((i, doc) in files.withIndex()) {
 
                 val ok = RetryManager.run {
-                    try {
-                        val temp = FileUtil.copyToTemp(this@HackerDashboard, doc.uri)
 
-                        // 🔐 Encrypt file
-                        val encrypted = File(temp.parent, temp.name + ".enc")
+                    try {
+
+                        val temp = FileUtil.copyToTemp(
+                            this@HackerDashboard,
+                            doc.uri
+                        )
+
+                        // Encrypt
+                        val encrypted =
+                            File(temp.parent, temp.name + ".enc")
+
                         CryptoUtil.encrypt(temp, encrypted, key)
+
                         temp.delete()
 
-                        // 🔍 Hash check on encrypted file
+                        // Hash check
                         val hash = HashUtil.getHash(encrypted)
-                        val oldHash = HashManager.get(this@HackerDashboard, doc.name)
+                        val old = HashManager.get(
+                            this@HackerDashboard,
+                            doc.name
+                        )
 
-                        if (hash == oldHash) {
+                        if (hash == old) {
+
                             encrypted.delete()
                             skipped++
+
                             withContext(Dispatchers.Main) {
-                                log("Skipped (No Change): ${doc.name}")
+
+                                log("Skipped: ${doc.name}")
                             }
+
                             return@run true
                         }
 
-                        val uploaded = Uploader.uploadFile(SERVER_URL, encrypted)
+                        val uploaded =
+                            Uploader.uploadFile(
+                                SERVER_URL,
+                                encrypted,
+                                progress.progress
+                            )
 
                         if (uploaded) {
-                            HashManager.save(this@HackerDashboard, doc.name, hash)
+
+                            HashManager.save(
+                                this@HackerDashboard,
+                                doc.name,
+                                hash
+                            )
                         }
 
                         encrypted.delete()
+
                         uploaded
 
                     } catch (e: Exception) {
+
                         false
                     }
                 }
@@ -193,12 +248,16 @@ class HackerDashboard : AppCompatActivity() {
                 if (ok) success++
 
                 withContext(Dispatchers.Main) {
-                    progress.progress = ((i + 1) * 100) / total
+
+                    progress.progress =
+                        ((i + 1) * 100) / total
                 }
             }
 
             withContext(Dispatchers.Main) {
+
                 status.text = "Backup Finished ✅"
+
                 log("Uploaded: $success / $total")
                 log("Skipped: $skipped")
             }
@@ -216,18 +275,24 @@ class HackerDashboard : AppCompatActivity() {
             .setRequiresCharging(true)
             .build()
 
-        val work = PeriodicWorkRequestBuilder<BackupWorker>(24, TimeUnit.HOURS)
-            .setConstraints(constraints)
-            .build()
+        val work =
+            PeriodicWorkRequestBuilder<BackupWorker>(
+                24,
+                TimeUnit.HOURS
+            )
+                .setConstraints(constraints)
+                .build()
 
-        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-            "AUTO_BACKUP",
-            ExistingPeriodicWorkPolicy.REPLACE,
-            work
-        )
+        WorkManager.getInstance(this)
+            .enqueueUniquePeriodicWork(
+
+                "AUTO_BACKUP",
+                ExistingPeriodicWorkPolicy.REPLACE,
+                work
+            )
 
         status.text = "Auto Backup ON"
-        log("Auto backup scheduled ✅")
+        log("Auto backup scheduled")
     }
 
     // ==================================================
@@ -235,13 +300,7 @@ class HackerDashboard : AppCompatActivity() {
     // ==================================================
 
     private fun log(msg: String) {
-        runOnUiThread {
-            logBox.append("➤ $msg\n")
-        }
-    }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        scope.cancel()
+        logBox.append("➤ $msg\n")
     }
 }
