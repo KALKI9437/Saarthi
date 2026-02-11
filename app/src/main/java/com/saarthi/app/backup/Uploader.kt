@@ -10,7 +10,7 @@ import java.io.FileInputStream
 // 🔹 Progress Enabled Body
 class ProgressRequestBody(
     private val file: File,
-    private val callback: (Int) -> Unit
+    private val callback: ((Int) -> Unit)?   // ✅ Optional
 ) : RequestBody() {
 
     override fun contentType(): MediaType? {
@@ -39,7 +39,9 @@ class ProgressRequestBody(
                 sink.write(buffer, 0, read)
 
                 val percent = (uploaded * 100 / total).toInt()
-                callback(percent)
+
+                // ✅ Safe callback
+                callback?.invoke(percent)
             }
         }
     }
@@ -53,7 +55,7 @@ object Uploader {
     fun uploadFile(
         url: String,
         file: File,
-        progress: (Int) -> Unit
+        progress: ((Int) -> Unit)? = null   // ✅ Default = null
     ): Boolean {
 
         val body = ProgressRequestBody(file, progress)
