@@ -16,7 +16,31 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
-    <!-- PROGRESS BAR (PHASE 1) -->
+    <!-- SERVER STATUS -->
+    <TextView
+        android:id="@+id/serverStatusText"
+        android:text="Server: Unknown"
+        android:textColor="#AAAAAA"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
+    <!-- FILE COUNT -->
+    <TextView
+        android:id="@+id/fileCountText"
+        android:text="Files: 0"
+        android:textColor="#AAAAAA"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
+    <!-- LAST BACKUP -->
+    <TextView
+        android:id="@+id/lastBackupText"
+        android:text="Last Backup: Never"
+        android:textColor="#AAAAAA"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
+    <!-- PROGRESS BAR -->
     <ProgressBar
         android:id="@+id/progressBar"
         style="?android:attr/progressBarStyleHorizontal"
@@ -35,27 +59,41 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
-    <!-- RUN SCAN (FOLDER PICKER) -->
+    <!-- RUN SCAN -->
     <Button
         android:id="@+id/btnScan"
         android:text="RUN SCAN (SELECT FOLDER)"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
-    <!-- UPLOAD DATA (MANUAL BACKUP) -->
+    <!-- MANUAL BACKUP -->
     <Button
         android:id="@+id/btnUpload"
         android:text="UPLOAD DATA (BACKUP)"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
-    <!-- 🔥 AUTO BACKUP (PHASE 2 - STEP 7) -->
+    <!-- AUTO BACKUP -->
     <Button
         android:id="@+id/btnAuto"
         android:text="AUTO BACKUP (DAILY)"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"/>
+        android:layout_marginTop="6dp"/>
+
+    <!-- STOP AUTO BACKUP -->
+    <Button
+        android:id="@+id/btnStopAuto"
+        android:text="STOP AUTO BACKUP"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
+    <!-- CLEAR LOGS -->
+    <Button
+        android:id="@+id/btnClearLogs"
+        android:text="CLEAR LOGS"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
 
     <!-- LOG VIEW -->
     <ScrollView
