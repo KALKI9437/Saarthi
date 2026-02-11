@@ -45,17 +45,17 @@ object AutoBackupManager {
 
                 temp.delete()
 
-                val hash = HashUtil.getHash(encrypted)
+                val hashBytes = HashUtil.getHash(encrypted)
+val hash = hashBytes.joinToString("") { "%02x".format(it) }
 
-                val name = f.name ?: f.uri.toString()
+val name = f.name ?: f.uri.toString()
 
-                val oldHash = HashManager.get(ctx, name)
+val oldHash = HashManager.get(ctx, name)
 
-                if (hash == oldHash) {
-
-                    encrypted.delete()
-                    continue
-                }
+if (hash == oldHash) {
+    encrypted.delete()
+    continue
+}
 
                 // ✅ FIXED CALLBACK
                 val uploaded = Uploader.uploadFile(
