@@ -185,8 +185,8 @@ class HackerDashboard : AppCompatActivity() {
 
         val hashBytes = HashUtil.getHash(enc)
 
-        val hash = hashBytes.joinToString("") {
-            "%02x".format(it)
+        val hash = hashBytes.joinToString("") { byte ->
+            "%02x".format(byte)
         }
 
         val old = HashManager.get(this, doc.uri.toString())
