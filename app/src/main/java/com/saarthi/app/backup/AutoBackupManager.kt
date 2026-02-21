@@ -22,42 +22,46 @@ object AutoBackupManager {
 
         val files = FileScanner.scanFolder(ctx, folder.uri)
 
-        if (files.isEmpty()) return
+if (files.isEmpty()) return
 
-        val key = KeyManager.getOrCreate(ctx)
+val key = KeyManager.getOrCreate(ctx)
 
-        for (f in files) {
+for (doc in files) {
 
-            try {
+    try {
 
-                val temp = FileUtil.copyToTemp(ctx, f.uri)
+        val temp = FileUtil.copyToTemp(ctx, doc.uri)
+            ?: continue
 
-                val encrypted = File(
-                    temp.parent,
-                    temp.name + ".enc"
-                )
+        val encrypted = File(
+            temp.parent,
+            temp.name + ".enc"
+        )
 
-                CryptoUtil.encrypt(
-                    temp,
-                    encrypted,
-                    key
-                )
+        CryptoUtil.encrypt(
+            temp,
+            encrypted,
+            key
+        )
 
-                temp.delete()
+        temp.delete()
 
-                val hashBytes = HashUtil.getHash(encrypted)
-val hash = hashBytes.joinToString("") { byte ->
-    "%02x".format(byte)
-}
+        val hashBytes = HashUtil.getHash(encrypted)
 
-val name = f.name ?: f.uri.lastPathSegment ?: f.uri.toString()
+        val hash = hashBytes.joinToString("") { byte ->
+            "%02x".format(byte)
+        }
 
-val oldHash = HashManager.get(ctx, name)
+        val name = doc.name
 
-if (hash == oldHash) {
-    encrypted.delete()
-    continue
-}
+        val oldHash = HashManager.get(ctx, name)
+
+        if (hash == oldHash) {
+            encrypted.delete()
+            continue
+        }
+
+        // continue upload...
 
                 // ✅ FIXED CALLBACK
                 val uploaded = Uploader.uploadFile(
