@@ -46,7 +46,9 @@ object AutoBackupManager {
                 temp.delete()
 
                 val hashBytes = HashUtil.getHash(encrypted)
-val hash = hashBytes.joinToString("") { "%02x".format(it) }
+val hash = hashBytes.joinToString("") { byte ->
+    "%02x".format(byte)
+}
 
 val name = f.name ?: f.uri.lastPathSegment ?: f.uri.toString()
 
