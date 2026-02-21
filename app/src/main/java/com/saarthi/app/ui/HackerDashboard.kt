@@ -183,7 +183,12 @@ class HackerDashboard : AppCompatActivity() {
         CryptoUtil.encrypt(temp, enc, key)
         temp.delete()
 
-        val hash = HashUtil.getHash(enc)
+        val hashBytes = HashUtil.getHash(enc)
+
+        val hash = hashBytes.joinToString("") {
+            "%02x".format(it)
+        }
+
         val old = HashManager.get(this, doc.uri.toString())
 
         if (hash == old) {
