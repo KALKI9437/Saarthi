@@ -48,7 +48,7 @@ object AutoBackupManager {
                 val hashBytes = HashUtil.getHash(encrypted)
 val hash = hashBytes.joinToString("") { "%02x".format(it) }
 
-val name = f.name ?: f.uri.toString()
+val name = f.name ?: f.uri.lastPathSegment ?: f.uri.toString()
 
 val oldHash = HashManager.get(ctx, name)
 
